@@ -1,0 +1,13 @@
+// ================================
+// Main SCSS Entry Point
+// ================================
+
+// 1. 변수와 믹스인 먼저 import
+@use 'variables' as vars;
+@use 'mixins' as mix;
+
+// 2. 글로벌 스타일
+@use 'global';
+
+// 3. 페이지별 스타일
+@use 'pages';

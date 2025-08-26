@@ -1,0 +1,238 @@
+// ================================
+// SCSS Mixins
+// ================================
+
+@use 'sass:map';
+@use 'sass:color';
+@use 'variables' as vars;
+
+// 반응형 브레이크포인트 믹스인
+@mixin breakpoint($size) {
+  @if map.has-key(vars.$breakpoints, $size) {
+    @media (min-width: map.get(vars.$breakpoints, $size)) {
+      @content;
+    }
+  } @else {
+    @warn "Unknown breakpoint: #{$size}.";
+  }
+}
+
+@mixin breakpoint-down($size) {
+  @if map.has-key(vars.$breakpoints, $size) {
+    @media (max-width: (map.get(vars.$breakpoints, $size) - 1px)) {
+      @content;
+    }
+  } @else {
+    @warn "Unknown breakpoint: #{$size}.";
+  }
+}
+
+@mixin breakpoint-between($min, $max) {
+  @if map.has-key(vars.$breakpoints, $min) and map.has-key(vars.$breakpoints, $max) {
+    @media (min-width: map.get(vars.$breakpoints, $min)) and (max-width: (map.get(vars.$breakpoints, $max) - 1px)) {
+      @content;
+    }
+  } @else {
+    @warn "Unknown breakpoints: #{$min} or #{$max}.";
+  }
+}
+
+// 간편한 반응형 믹스인
+@mixin mobile {
+  @include breakpoint-down(md) {
+    @content;
+  }
+}
+
+@mixin tablet {
+  @include breakpoint-between(md, lg) {
+    @content;
+  }
+}
+
+@mixin desktop {
+  @include breakpoint(lg) {
+    @content;
+  }
+}
+
+// 플렉스박스 믹스인
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@mixin flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+@mixin flex-column-center {
+  @include flex-column;
+  align-items: center;
+  justify-content: center;
+}
+
+// 텍스트 믹스인
+@mixin text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@mixin text-clamp($lines: 2) {
+  display: -webkit-box;
+  -webkit-line-clamp: $lines;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+// 버튼 믹스인
+@mixin button-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: vars.$spacing-3 vars.$spacing-6;
+  border: none;
+  border-radius: vars.$radius-md;
+  font-size: vars.$font-size-sm;
+  font-weight: vars.$font-weight-medium;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all vars.$transition-duration-base vars.$transition-timing;
+  position: relative;
+  overflow: hidden;
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+  }
+}
+
+@mixin button-variant($bg-color, $text-color: vars.$white, $hover-bg: null) {
+  background: $bg-color;
+  color: $text-color;
+  
+  @if $hover-bg {
+    &:hover:not(:disabled) {
+      background: $hover-bg;
+    }
+  } @else {
+    &:hover:not(:disabled) {
+      // CSS 변수는 Sass 함수에서 직접 사용할 수 없으므로 filter 사용
+      filter: brightness(0.9);
+    }
+  }
+}
+
+// 카드 믹스인
+@mixin card-base {
+  background: var(--card-background);
+  border-radius: vars.$radius-xl;
+  padding: vars.$spacing-6;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border-color);
+  transition: all vars.$transition-duration-base vars.$transition-timing;
+  backdrop-filter: var(--blur);
+  position: relative;
+  overflow: hidden;
+}
+
+@mixin card-hover {
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-hover);
+    border-color: var(--primary-color);
+  }
+}
+
+// 입력 필드 믹스인
+@mixin input-base {
+  width: 100%;
+  padding: vars.$spacing-3 vars.$spacing-4;
+  border: 2px solid var(--border-color);
+  border-radius: vars.$radius-md;
+  background: var(--card-background);
+  color: var(--text-color);
+  font-size: vars.$font-size-base;
+  transition: all vars.$transition-duration-base vars.$transition-timing;
+  backdrop-filter: var(--blur);
+  
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  }
+  
+  &::placeholder {
+    color: var(--text-secondary);
+  }
+}
+
+// 로딩 스피너 믹스인
+@mixin loading-spinner($size: 20px, $border-width: 3px) {
+  display: inline-block;
+  width: $size;
+  height: $size;
+  border: $border-width solid var(--primary-color);
+  border-top: $border-width solid transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+// 그림자 효과 믹스인
+@mixin glassmorphism {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+// 호버 효과 믹스인
+@mixin hover-lift($distance: 2px) {
+  transition: transform vars.$transition-duration-base vars.$transition-timing;
+  
+  &:hover {
+    transform: translateY(-#{$distance});
+  }
+}
+
+@mixin hover-scale($scale: 1.05) {
+  transition: transform vars.$transition-duration-base vars.$transition-timing;
+  
+  &:hover {
+    transform: scale($scale);
+  }
+}
+
+// 절대 위치 중앙 정렬
+@mixin absolute-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+// 전체 덮기
+@mixin full-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+// 그라데이션 텍스트
+@mixin gradient-text($gradient) {
+  background: $gradient;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
