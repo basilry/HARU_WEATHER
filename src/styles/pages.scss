@@ -208,6 +208,9 @@
         cursor: pointer;
         transition: var(--transition);
         border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
         
         &:last-child {
           border-bottom: none;
@@ -220,6 +223,16 @@
         
         &:hover {
           background: var(--border-color);
+        }
+        
+        .city-name {
+          font-weight: 600;
+          color: var(--text-color);
+        }
+        
+        .city-detail {
+          font-size: vars.$font-size-sm;
+          color: var(--text-secondary);
         }
       }
     }
@@ -395,146 +408,5 @@
     font-size: vars.$font-size-base;
     color: var(--text-secondary);
     text-align: center;
-  }
-}
-
-// ================================
-// Forecast Section 컴포넌트
-// ================================
-
-.forecast-section {
-  margin-top: vars.$spacing-12;
-  
-  .section-title {
-    font-size: vars.$font-size-2xl;
-    font-weight: vars.$font-weight-semibold;
-    margin-bottom: vars.$spacing-6;
-    color: var(--text-color);
-  }
-  
-  .forecast-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: vars.$spacing-4;
-    
-    @include mix.mobile {
-      grid-template-columns: repeat(2, 1fr);
-      gap: vars.$spacing-3;
-    }
-    
-    @include mix.breakpoint-down(sm) {
-      grid-template-columns: 1fr;
-    }
-  }
-  
-  .forecast-card {
-    text-align: center;
-    padding: vars.$spacing-4;
-    min-height: auto;
-    @include mix.flex-column;
-    gap: vars.$spacing-3;
-    
-    @include mix.mobile {
-      padding: vars.$spacing-3;
-      gap: vars.$spacing-2;
-    }
-    
-    .forecast-date {
-      .day-name {
-        font-size: vars.$font-size-lg;
-        font-weight: vars.$font-weight-semibold;
-        color: var(--text-color);
-        margin-bottom: vars.$spacing-1;
-      }
-      
-      .date {
-        font-size: vars.$font-size-sm;
-        color: var(--text-secondary);
-      }
-    }
-    
-    .forecast-weather {
-      .weather-icon-desc {
-        @include mix.flex-center;
-        gap: vars.$spacing-2;
-        flex-direction: column;
-        
-        @include mix.mobile {
-          gap: vars.$spacing-1;
-        }
-        
-        .forecast-icon {
-          width: 48px;
-          height: 48px;
-          
-          @include mix.mobile {
-            width: 40px;
-            height: 40px;
-          }
-        }
-        
-        .weather-desc {
-          font-size: vars.$font-size-sm;
-          color: var(--text-secondary);
-          font-weight: vars.$font-weight-medium;
-        }
-      }
-    }
-    
-    .forecast-temp {
-      .temp-range {
-        font-size: vars.$font-size-xl;
-        font-weight: vars.$font-weight-semibold;
-        
-        @include mix.mobile {
-          font-size: vars.$font-size-lg;
-        }
-        
-        .max-temp {
-          color: var(--text-color);
-        }
-        
-        .temp-separator {
-          color: var(--text-secondary);
-          margin: 0 vars.$spacing-1;
-        }
-        
-        .min-temp {
-          color: var(--text-secondary);
-        }
-      }
-    }
-    
-    .forecast-details {
-      .detail-row {
-        @include mix.flex-center;
-        gap: vars.$spacing-1;
-        font-size: vars.$font-size-xs;
-        flex-wrap: wrap;
-        justify-content: center;
-        
-        @include mix.mobile {
-          gap: 2px;
-        }
-        
-        .detail-icon {
-          font-size: vars.$font-size-sm;
-        }
-        
-        .detail-text {
-          color: var(--text-secondary);
-          font-weight: vars.$font-weight-medium;
-          margin-right: vars.$spacing-2;
-          
-          @include mix.mobile {
-            margin-right: vars.$spacing-1;
-          }
-          
-          &:last-child {
-            margin-right: 0;
-          }
-        }
-      }
-    }
   }
 }

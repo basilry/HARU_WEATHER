@@ -1,3 +1,6 @@
+@use '../variables' as vars;
+@use '../mixins' as mix;
+
 .weather-radar-container {
   background: var(--card-background);
   border-radius: 12px;
@@ -101,7 +104,6 @@
 }
 
 .radar-map {
-  height: 600px;  // WeatherCard와 비슷한 크기로 대폭 증가
   position: relative;
   background: linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%),
               linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%);
@@ -450,33 +452,31 @@
   font-weight: 500;
 }
 
+.radar-map {
+  height: 705px;
+}
+
 /* 반응형 크기 조정 - WeatherCard와 매칭 */
-@media (min-width: 1024px) {
+@media (max-width: 1195px) {
   .radar-map {
-    height: 705px;  // 대형 데스크톱에서 WeatherCard와 매칭
+    height: 795px;  // 대형 데스크톱에서 WeatherCard와 매칭
   }
 }
 
-@media (min-width: 768px) and (max-width: 1023px) {
+@media (max-width: 1024px) {
   .radar-map {
-    height: 600px;  // 태블릿에서 WeatherCard와 매칭
+    height: 872px;  // 대형 데스크톱에서 WeatherCard와 매칭
   }
 }
 
-/* 모바일 반응형 */
-@media (max-width: 767px) {
+@media (max-width: 880px) {
   .radar-map {
-    height: 450px;  // 모바일에서도 WeatherCard 비율 유지
+    height: 885px;  // 대형 데스크톱에서 WeatherCard와 매칭
   }
-  
-  .radar-legend {
-    bottom: 8px;
-    right: 8px;
-    padding: 6px 10px;
-    gap: 8px;
-  }
-  
-  .legend-text {
-    font-size: 0.65rem;
+}
+
+@media (max-width: 864px) {
+  .radar-map {
+    height: 1155px;  // 대형 데스크톱에서 WeatherCard와 매칭
   }
 }

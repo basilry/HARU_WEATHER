@@ -53,7 +53,8 @@
             @click="selectSuggestion(suggestion)"
             class="suggestion-item"
           >
-            {{ suggestion.name }}, {{ suggestion.country }}
+            <span class="city-name">{{ suggestion.name }}</span>
+            <span class="city-detail">{{ suggestion.state ? `${suggestion.state}, ` : '' }}{{ suggestion.country }}</span>
           </div>
         </div>
       </section>
@@ -124,6 +125,9 @@
         />
       </transition>
     </div>
+
+    <!-- Footer -->
+    <Footer />
     
     <!-- 스크롤 to top 버튼 -->
     <ScrollToTop :isDarkMode="isDarkMode" />
@@ -137,6 +141,7 @@ import FavoriteCard from '@components/FavoriteCard.vue'
 import ForecastSection from '@components/ForecastSection.vue'
 import ScrollToTop from '@components/ScrollToTop.vue'
 import WeatherRadar from '@components/WeatherRadar.vue'
+import Footer from '@components/Footer.vue'
 import { weatherService } from '@services/weatherService.js'
 import { locationService } from '@services/locationService.js'
 import { storageService } from '@services/storageService.js'
@@ -148,7 +153,8 @@ export default {
     FavoriteCard,
     ForecastSection,
     ScrollToTop,
-    WeatherRadar
+    WeatherRadar,
+    Footer
   },
   setup() {
     // 반응형 상태
@@ -258,8 +264,20 @@ export default {
         isSearching.value = true
         error.value = ''
         
-        const weatherData = await weatherService.getWeatherByCity(searchQuery.value.trim())
-        const forecastData = await weatherService.getForecastByCity(searchQuery.value.trim())
+        // 먼저 Geocoding API로 도시 정보 가져오기 (한글 검색 지원)
+        console.log('검색어:', searchQuery.value.trim())
+        const cities = await weatherService.searchCities(searchQuery.value.trim())
+        console.log('검색 결과:', cities)
+        
+        if (cities.length === 0) {
+          throw new Error('해당 도시를 찾을 수 없습니다.')
+        }
+        
+        // 첫 번째 결과의 좌표로 날씨 정보 가져오기
+        const firstCity = cities[0]
+        console.log('선택된 도시:', firstCity)
+        const weatherData = await weatherService.getCurrentWeather(firstCity.lat, firstCity.lon)
+        const forecastData = await weatherService.getForecast(firstCity.lat, firstCity.lon)
         
         currentWeather.value = weatherData
         forecast.value = forecastData
@@ -288,10 +306,25 @@ export default {
     }
 
     // 자동완성 선택
-    const selectSuggestion = (suggestion) => {
-      searchQuery.value = `${suggestion.name}, ${suggestion.country}`
-      searchSuggestions.value = []
-      searchWeather()
+    const selectSuggestion = async (suggestion) => {
+      try {
+        // 자동완성에서 선택된 경우 좌표로 직접 날씨 정보 가져오기
+        isSearching.value = true
+        error.value = ''
+        
+        const weatherData = await weatherService.getCurrentWeather(suggestion.lat, suggestion.lon)
+        const forecastData = await weatherService.getForecast(suggestion.lat, suggestion.lon)
+        
+        currentWeather.value = weatherData
+        forecast.value = forecastData
+        searchQuery.value = `${suggestion.name}, ${suggestion.country}`
+        searchSuggestions.value = []
+      } catch (err) {
+        error.value = err.message
+        console.error('자동완성 선택 실패:', err)
+      } finally {
+        isSearching.value = false
+      }
     }
 
     // 다크모드 토글
