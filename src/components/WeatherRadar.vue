@@ -2,35 +2,27 @@
   <div class="weather-radar-container">
     <div class="radar-header">
       <h5 class="radar-title">
-        <span class="radar-icon">🌧️</span>
-        RainViewer 구름 레이더
+        <span class="radar-icon">🌦️</span>
+        {{ currentLayerInfo?.name }} 레이더
       </h5>
       <div class="radar-info">
         <span class="update-time">{{ lastUpdate }}</span>
         <div class="radar-controls">
-          <button 
-            @click="previousFrame" 
-            class="control-btn"
-            :disabled="currentFrameIndex <= 0"
-            title="이전 프레임"
+          <!-- 레이어 선택 드롭다운 -->
+          <select 
+            v-model="selectedLayer" 
+            @change="changeLayer(selectedLayer)"
+            class="layer-selector"
+            title="날씨 레이어 선택"
           >
-            ⏮️
-          </button>
-          <button 
-            @click="toggleAnimation" 
-            class="control-btn"
-            :title="isAnimating ? '일시정지' : '재생'"
-          >
-            {{ isAnimating ? '⏸️' : '▶️' }}
-          </button>
-          <button 
-            @click="nextFrame" 
-            class="control-btn"
-            :disabled="currentFrameIndex >= totalFrames - 1"
-            title="다음 프레임"
-          >
-            ⏭️
-          </button>
+            <option 
+              v-for="layer in availableLayers" 
+              :key="layer.key" 
+              :value="layer.key"
+            >
+              {{ layer.name }}
+            </option>
+          </select>
           <button 
             @click="refreshRadar" 
             class="control-btn"
@@ -56,12 +48,12 @@
         <!-- Leaflet 지도 컨테이너 -->
         <div ref="mapContainer" class="map-container"></div>
         
-        <!-- RainViewer 서비스 제한 안내 -->
+        <!-- OpenWeatherMap 서비스 안내 -->
         <div v-if="!isLoading && !imageError && showServiceNotice" class="service-notice">
           <div class="notice-icon">ℹ️</div>
           <div class="notice-text">
-            <p><strong>RainViewer 레이더 서비스</strong></p>
-            <p>일부 지역에서는 레이더 데이터가 제한될 수 있습니다.</p>
+            <p><strong>OpenWeatherMap {{ currentLayerInfo?.name }} 레이더</strong></p>
+            <p>{{ currentLayerInfo?.description }} 데이터를 실시간으로 제공합니다.</p>
           </div>
           <button 
             @click="closeServiceNotice" 
@@ -72,15 +64,11 @@
           </button>
         </div>
         
-        <!-- 프레임 정보 -->
-        <div class="frame-info">
-          <span class="frame-counter">{{ currentFrameIndex + 1 }} / {{ totalFrames }}</span>
-          <span class="frame-time">{{ currentFrameTime }}</span>
-        </div>
+
         
         <!-- 레이더 범례 -->
         <div class="radar-legend">
-          <div class="legend-title">강수 강도</div>
+          <div class="legend-title">{{ currentLayerInfo?.name }} 정보</div>
           <div 
             v-for="(item, index) in legendItems" 
             :key="index"
@@ -98,6 +86,7 @@
 <script>
 import { ref, onMounted, watch, computed, onUnmounted, nextTick } from 'vue'
 import L from 'leaflet'
+import 'leaflet-openweathermap'
 
 export default {
   name: 'WeatherRadar',
@@ -120,59 +109,43 @@ export default {
     const mapContainer = ref(null)
     const isLoading = ref(false)
     const imageError = ref(false)
-    const radarData = ref(null)
     const refreshInterval = ref(null)
-    const animationInterval = ref(null)
     const showServiceNotice = ref(true)
+    const selectedLayer = ref('clouds') // 기본 레이어: 구름
     
     // Leaflet 지도 관련
     let map = null
     let radarLayer = null
     
-    // 애니메이션 상태
-    const isAnimating = ref(false)
-    const currentFrameIndex = ref(0)
-    const animationSpeed = 1000 // 1초마다 프레임 변경
-
-    // RainViewer API 엔드포인트
-    const RAINVIEWER_API = 'https://api.rainviewer.com/public/weather-maps.json'
-    
-    // 범례 아이템
-    const legendItems = [
-      { color: 'light-rain', text: '약한 비' },
-      { color: 'moderate-rain', text: '보통 비' },
-      { color: 'heavy-rain', text: '강한 비' },
-      { color: 'very-heavy-rain', text: '매우 강한 비' }
+    // 사용 가능한 날씨 레이어 목록
+    const availableLayers = [
+      { key: 'clouds', name: '구름', description: '구름 덮개 정도' },
+      { key: 'precipitation', name: '강수량', description: '비/눈 총 강수량' },
+      { key: 'rain', name: '비', description: '비만 표시' },
+      { key: 'snow', name: '눈', description: '눈만 표시' },
+      { key: 'temperature', name: '기온', description: '지표면 온도' },
+      { key: 'wind', name: '바람', description: '풍속 정보' },
+      { key: 'pressure', name: '기압', description: '해수면 기압' }
     ]
-
-    // 총 프레임 수 계산
-    const totalFrames = computed(() => {
-      if (!radarData.value?.radar?.past) return 0
-      return radarData.value.radar.past.length
+    
+    // 현재 선택된 레이어 정보
+    const currentLayerInfo = computed(() => {
+      return availableLayers.find(layer => layer.key === selectedLayer.value)
     })
-
-    // 현재 프레임 시간 표시
-    const currentFrameTime = computed(() => {
-      if (!radarData.value?.radar?.past || currentFrameIndex.value >= totalFrames.value) {
-        return '데이터 없음'
-      }
-      
-      const frame = radarData.value.radar.past[currentFrameIndex.value]
-      const timestamp = frame.time * 1000
-      const date = new Date(timestamp)
-      return date.toLocaleTimeString('ko-KR', {
-        hour: '2-digit',
-        minute: '2-digit'
-      })
+    
+    // 범례 아이템 (leaflet-openweathermap이 자동으로 제공)
+    const legendItems = computed(() => {
+      return [
+        { color: 'auto', text: currentLayerInfo.value?.name || '날씨' },
+        { color: 'auto', text: currentLayerInfo.value?.description || '정보' },
+        { color: 'auto', text: 'OpenWeatherMap 제공' }
+      ]
     })
 
     // 현재 시간 포맷팅
     const lastUpdate = computed(() => {
-      if (!radarData.value) return '업데이트 중...'
-      
-      const timestamp = radarData.value.generated * 1000
-      const date = new Date(timestamp)
-      return date.toLocaleTimeString('ko-KR', {
+      const now = new Date()
+      return now.toLocaleTimeString('ko-KR', {
         hour: '2-digit',
         minute: '2-digit'
       })
@@ -187,11 +160,13 @@ export default {
         map.remove()
       }
       
-      // 새 지도 생성
+      // 새 지도 생성 (leaflet-openweathermap 최적화)
       map = L.map(mapContainer.value, {
         center: [props.latitude, props.longitude],
-        zoom: 8,
-        zoomControl: false, // 기본 줌 컨트롤 비활성화
+        zoom: 8,             // 일반적인 지역 보기 줌 레벨
+        minZoom: 1,          // 최소 줌 레벨
+        maxZoom: 18,         // OpenStreetMap 최대 줌 (OWM은 자동 관리)
+        zoomControl: false,  // 기본 줌 컨트롤 비활성화
         attributionControl: false // 기본 attribution 비활성화
       })
       
@@ -210,9 +185,9 @@ export default {
       console.log('Leaflet 지도 초기화 완료')
     }
 
-    // RainViewer 레이더 레이어 추가 (공식 예제 방식)
+    // OpenWeatherMap 구름 레이더 레이어 추가
     const addRadarLayer = () => {
-      if (!map || !radarData.value?.radar?.past) return
+      if (!map) return
       
       // 기존 레이더 레이어 제거
       if (radarLayer) {
@@ -220,43 +195,59 @@ export default {
       }
       
       try {
-        const frame = radarData.value.radar.past[currentFrameIndex.value]
-        const host = radarData.value.host
-        const color = 2 // 색상 스키마 (2 = 표준)
-        const options = '1_0' // smoothed, no snow
+        const apiKey = import.meta.env.VITE_WEATHER_API_KEY
         
-        // RainViewer 공식 타일 레이어 방식: {host}{path}/{z}/{x}/{y}/{color}/{options}.png
-        const tileUrl = `${host}${frame.path}/{z}/{x}/{y}/${color}/${options}.png`
+        if (!apiKey) {
+          console.warn('OpenWeatherMap API 키가 없어서 레이더를 표시할 수 없습니다.')
+          showServiceNotice.value = true
+          return
+        }
         
-        console.log('RainViewer 레이더 타일 URL 생성:', {
-          frameIndex: currentFrameIndex.value,
-          frameTime: new Date(frame.time * 1000).toLocaleTimeString(),
-          host,
-          path: frame.path,
-          color,
-          options,
-          tileUrl
+        // leaflet-openweathermap 패키지 사용 (전문 라이브러리)
+        console.log('leaflet-openweathermap 패키지로 날씨 레이더 생성:', {
+          layerType: selectedLayer.value,
+          hasApiKey: !!apiKey,
+          note: 'L.OWM이 자동으로 모든 좌표 변환을 처리합니다'
         })
         
-        // RainViewer 타일 레이어 생성 (공식 방식)
-        radarLayer = L.tileLayer(tileUrl, {
-          opacity: 0.7,
-          attribution: '© RainViewer',
-          maxZoom: 18,
-          tileSize: 256,
-          errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' // 투명 이미지
-        }).addTo(map)
+        // 선택된 레이어에 따라 동적으로 레이더 생성
+        const layerOptions = {
+          appId: apiKey,
+          opacity: 0.6,
+          showLegend: true,        // 기본 범례 표시
+          legendPosition: 'bottomleft'
+        }
         
-        // 타일 로딩 이벤트 처리
-        radarLayer.on('tileerror', (e) => {
-          console.warn('RainViewer 타일 로딩 실패:', e.tile.src)
-        })
+        // 레이어 타입별 생성
+        switch (selectedLayer.value) {
+          case 'clouds':
+            radarLayer = L.OWM.clouds(layerOptions)
+            break
+          case 'precipitation':
+            radarLayer = L.OWM.precipitation(layerOptions)
+            break
+          case 'rain':
+            radarLayer = L.OWM.rain(layerOptions)
+            break
+          case 'snow':
+            radarLayer = L.OWM.snow(layerOptions)
+            break
+          case 'temperature':
+            radarLayer = L.OWM.temperature(layerOptions)
+            break
+          case 'wind':
+            radarLayer = L.OWM.wind(layerOptions)
+            break
+          case 'pressure':
+            radarLayer = L.OWM.pressure(layerOptions)
+            break
+          default:
+            radarLayer = L.OWM.clouds(layerOptions) // 기본값: 구름
+        }
         
-        radarLayer.on('tileload', (e) => {
-          console.log('RainViewer 타일 로딩 성공')
-        })
+        radarLayer.addTo(map)
         
-        console.log('RainViewer 레이더 타일 레이어 추가 완료')
+        console.log(`leaflet-openweathermap ${currentLayerInfo.value?.name} 레이더 추가 완료`)
         
       } catch (error) {
         console.error('레이더 레이어 추가 오류:', error)
@@ -264,100 +255,33 @@ export default {
       }
     }
 
-    // RainViewer API에서 레이더 데이터 가져오기
-    const fetchRadarData = async () => {
+    // OpenWeatherMap 구름 레이더 초기화
+    const initRadarLayer = () => {
       try {
         isLoading.value = true
         imageError.value = false
         
-        console.log('RainViewer API에서 레이더 데이터 가져오는 중...')
+        console.log('OpenWeatherMap 구름 레이더 초기화 중...')
         
-        const response = await fetch(RAINVIEWER_API)
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
+        // OpenWeatherMap은 실시간 타일을 제공하므로 별도 API 호출 불필요
+        addRadarLayer()
         
-        const data = await response.json()
-        radarData.value = data
-        
-        console.log('RainViewer 레이더 데이터 로드 성공:', data)
-        
-        // 가장 최근의 과거 레이더 데이터 사용
-        if (data.radar && data.radar.past && data.radar.past.length > 0) {
-          currentFrameIndex.value = data.radar.past.length - 1 // 가장 최근 프레임
-          addRadarLayer()
-        } else {
-          throw new Error('사용 가능한 레이더 데이터가 없습니다')
-        }
-        
-        // API 호출 성공 시 로딩 상태 해제
+        // 로딩 상태 해제
         isLoading.value = false
         
       } catch (error) {
-        console.error('RainViewer API 오류:', error)
+        console.error('OpenWeatherMap 레이더 초기화 오류:', error)
         imageError.value = true
         isLoading.value = false
       }
     }
 
-    // 이전 프레임
-    const previousFrame = () => {
-      if (currentFrameIndex.value > 0) {
-        currentFrameIndex.value--
-        addRadarLayer()
-      }
-    }
 
-    // 다음 프레임
-    const nextFrame = () => {
-      if (currentFrameIndex.value < totalFrames.value - 1) {
-        currentFrameIndex.value++
-        addRadarLayer()
-      }
-    }
-
-    // 애니메이션 토글
-    const toggleAnimation = () => {
-      if (isAnimating.value) {
-        stopAnimation()
-      } else {
-        startAnimation()
-      }
-    }
-
-    // 애니메이션 시작
-    const startAnimation = () => {
-      if (totalFrames.value <= 1) return
-      
-      isAnimating.value = true
-      animationInterval.value = setInterval(() => {
-        if (currentFrameIndex.value >= totalFrames.value - 1) {
-          currentFrameIndex.value = 0 // 처음으로 돌아가기
-        } else {
-          currentFrameIndex.value++
-        }
-        addRadarLayer()
-      }, animationSpeed)
-      
-      console.log('레이더 애니메이션 시작')
-    }
-
-    // 애니메이션 정지
-    const stopAnimation = () => {
-      isAnimating.value = false
-      if (animationInterval.value) {
-        clearInterval(animationInterval.value)
-        animationInterval.value = null
-      }
-      console.log('레이더 애니메이션 정지')
-    }
 
     // 레이더 새로고침
     const refreshRadar = () => {
-      console.log('레이더 새로고침 시작')
-      stopAnimation()
-      currentFrameIndex.value = 0
-      fetchRadarData()
+      console.log('OpenWeatherMap 레이더 새로고침 시작')
+      addRadarLayer()
     }
 
     // 서비스 안내 닫기
@@ -366,12 +290,19 @@ export default {
       console.log('서비스 안내 닫힘')
     }
 
-    // 자동 새로고침 설정 (10분마다)
+    // 레이어 변경 함수
+    const changeLayer = (layerKey) => {
+      console.log('날씨 레이어 변경:', layerKey)
+      selectedLayer.value = layerKey
+      addRadarLayer() // 새 레이어로 레이더 업데이트
+    }
+
+    // 자동 새로고침 설정 (5분마다)
     const startAutoRefresh = () => {
       refreshInterval.value = setInterval(() => {
-        console.log('자동 레이더 새로고침 실행')
+        console.log('자동 OpenWeatherMap 레이더 새로고침 실행')
         refreshRadar()
-      }, 10 * 60 * 1000) // 10분
+      }, 5 * 60 * 1000) // 5분
     }
 
     const stopAutoRefresh = () => {
@@ -388,18 +319,20 @@ export default {
         lon: props.longitude
       })
       
-      if (props.latitude && props.longitude) {
-        // 지도 중심 이동
-        if (map) {
-          map.setView([props.latitude, props.longitude], 8)
-        }
+      if (props.latitude && props.longitude && map) {
+        // 지도 중심 이동 (일반적인 지역 보기 줌 레벨)
+        map.setView([props.latitude, props.longitude], 8)
         
-        // 레이더 데이터가 있으면 새 좌표로 업데이트
-        if (radarData.value) {
-          addRadarLayer()
-        } else {
-          fetchRadarData()
-        }
+        // 마커 업데이트
+        map.eachLayer((layer) => {
+          if (layer instanceof L.Marker) {
+            layer.setLatLng([props.latitude, props.longitude])
+            layer.bindPopup(`<b>${props.cityName}</b><br>현재 위치`).openPopup()
+          }
+        })
+        
+        // 레이더 레이어는 전역적이므로 좌표 변경과 무관
+        console.log('지도 중심 및 마커 업데이트 완료')
       }
     })
 
@@ -414,14 +347,13 @@ export default {
         // DOM이 렌더링된 후 지도 초기화
         await nextTick()
         initMap()
-        fetchRadarData()
+        initRadarLayer()
         startAutoRefresh()
       }
     })
 
     onUnmounted(() => {
       stopAutoRefresh()
-      stopAnimation()
       
       // 지도 정리
       if (map) {
@@ -437,16 +369,14 @@ export default {
       imageError,
       lastUpdate,
       legendItems,
-      currentFrameIndex,
-      totalFrames,
-      currentFrameTime,
-      isAnimating,
       showServiceNotice,
       refreshRadar,
-      previousFrame,
-      nextFrame,
-      toggleAnimation,
-      closeServiceNotice
+      closeServiceNotice,
+      // 새로운 레이어 선택 기능
+      selectedLayer,
+      availableLayers,
+      currentLayerInfo,
+      changeLayer
     }
   }
 }

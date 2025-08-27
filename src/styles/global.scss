@@ -13,6 +13,7 @@
 :root {
   // 색상
   --primary-color: #{vars.$primary};
+  --primary-hover: #{color.adjust(vars.$primary, $lightness: 10%)}; // primary보다 10% 밝게
   --secondary-color: #{vars.$secondary};
   --accent-color: #{vars.$accent};
   --error-color: #{vars.$error};
@@ -26,6 +27,7 @@
   --title-color: #{vars.$gray-800};
   --card-background: rgba(255, 255, 255, 0.9);
   --border-color: rgba(226, 232, 240, 0.8);
+  --header-text-color: #{vars.$white}; // 라이트 모드: 헤더 텍스트는 흰색
   
   // 그림자 & 효과
   --shadow: #{vars.$shadow-lg};
@@ -35,6 +37,7 @@
 }
 
 [data-theme="dark"] {
+  --primary-hover: #{color.adjust(vars.$primary, $lightness: 15%)}; // 다크 모드에서는 15% 밝게
   --page-background: #{vars.$black};
   --body-background: #1a202c;
   --text-color: #{vars.$gray-100};
@@ -42,6 +45,7 @@
   --title-color: #{vars.$gray-100};
   --card-background: rgba(30, 41, 59, 0.8);
   --border-color: rgba(51, 65, 85, 0.6);
+  --header-text-color: #{vars.$white}; // 다크 모드: 헤더 텍스트도 흰색 유지
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   --shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.4);
 }

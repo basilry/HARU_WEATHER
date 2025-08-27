@@ -5,15 +5,20 @@
   box-shadow: var(--shadow);
   border: 1px solid var(--border-color);
   height: fit-content;
+  width: 100%;
+  // width: 600px;  // WeatherCard와 동일한 최대 폭
+  margin: 0 auto;    // 중앙 정렬
 }
 
 .radar-header {
   padding: 16px;
   background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
-  color: white;
+  color: var(--header-text-color, white); // 테마에 따라 자동 변경
   display: flex;
+  // flex-direction: column;
   justify-content: space-between;
-  align-items: center;
+  align-items: left;
+  text-align: center;
 }
 
 .radar-title {
@@ -39,7 +44,29 @@
   .radar-controls {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
+    
+    .layer-selector {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      color: var(--header-text-color, white); // 테마에 따라 자동 변경
+      font-size: 0.85rem;
+      padding: 4px 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-bottom: 0;
+      
+      &:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.3);
+      }
+      
+      option {
+        background: var(--dropdown-background, #333);
+        color: var(--text-color);
+      }
+    }
     
     .control-btn {
       background: none;
@@ -48,6 +75,7 @@
       cursor: pointer;
       padding: 4px 6px;
       border-radius: 4px;
+      color: var(--header-text-color, white); // 테마에 따라 자동 변경
       transition: all 0.2s;
       opacity: 0.8;
       
@@ -73,7 +101,7 @@
 }
 
 .radar-map {
-  height: 250px;
+  height: 600px;  // WeatherCard와 비슷한 크기로 대폭 증가
   position: relative;
   background: linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%),
               linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%);
@@ -153,7 +181,6 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  max-width: 280px;
   z-index: 10;
   transition: all 0.3s ease; // 부드러운 전환 효과
   
@@ -423,10 +450,23 @@
   font-weight: 500;
 }
 
-/* 모바일 반응형 */
-@media (max-width: 768px) {
+/* 반응형 크기 조정 - WeatherCard와 매칭 */
+@media (min-width: 1024px) {
   .radar-map {
-    height: 200px;
+    height: 705px;  // 대형 데스크톱에서 WeatherCard와 매칭
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .radar-map {
+    height: 600px;  // 태블릿에서 WeatherCard와 매칭
+  }
+}
+
+/* 모바일 반응형 */
+@media (max-width: 767px) {
+  .radar-map {
+    height: 450px;  // 모바일에서도 WeatherCard 비율 유지
   }
   
   .radar-legend {

@@ -114,7 +114,6 @@
       <div v-if="isLoading && !currentWeather" class="loading-container">
         <div class="loading-large"></div>
         <p>날씨 정보를 불러오는 중...</p>
-        <p class="loading-debug">현재 상태: isLoading={{ isLoading }}, currentWeather={{ currentWeather ? '있음' : '없음' }}</p>
       </div>
 
       <!-- 5일 예보 -->
