@@ -2,11 +2,43 @@
   <div class="weather-radar-container">
     <div class="radar-header">
       <h5 class="radar-title">
-        <span class="radar-icon">{{ layerInfo.icon }}</span>
-        {{ layerInfo.title }}
+        <span class="radar-icon">🌧️</span>
+        RainViewer 구름 레이더
       </h5>
       <div class="radar-info">
         <span class="update-time">{{ lastUpdate }}</span>
+        <div class="radar-controls">
+          <button 
+            @click="previousFrame" 
+            class="control-btn"
+            :disabled="currentFrameIndex <= 0"
+            title="이전 프레임"
+          >
+            ⏮️
+          </button>
+          <button 
+            @click="toggleAnimation" 
+            class="control-btn"
+            :title="isAnimating ? '일시정지' : '재생'"
+          >
+            {{ isAnimating ? '⏸️' : '▶️' }}
+          </button>
+          <button 
+            @click="nextFrame" 
+            class="control-btn"
+            :disabled="currentFrameIndex >= totalFrames - 1"
+            title="다음 프레임"
+          >
+            ⏭️
+          </button>
+          <button 
+            @click="refreshRadar" 
+            class="control-btn"
+            title="새로고침"
+          >
+            🔄
+          </button>
+        </div>
       </div>
     </div>
     
@@ -21,27 +53,36 @@
           <span class="loading-text">레이더 로딩중...</span>
         </div>
         
-        <!-- OpenWeatherMap 레이더 타일 -->
-        <div v-if="!isLoading" class="radar-tiles">
-          <img 
-            v-if="!imageError"
-            :src="radarUrl" 
-            :alt="`${cityName} 지역 구름 레이더`"
-            class="radar-image"
-            @load="onImageLoad"
-            @error="onImageError"
-          />
-          <div v-else class="radar-error">
-            <div class="error-icon">🌤️</div>
-            <p class="error-text">레이더 데이터를 불러올 수 없습니다</p>
-            <p class="error-subtext">일시적인 서비스 장애일 수 있습니다</p>
+        <!-- Leaflet 지도 컨테이너 -->
+        <div ref="mapContainer" class="map-container"></div>
+        
+        <!-- RainViewer 서비스 제한 안내 -->
+        <div v-if="!isLoading && !imageError && showServiceNotice" class="service-notice">
+          <div class="notice-icon">ℹ️</div>
+          <div class="notice-text">
+            <p><strong>RainViewer 레이더 서비스</strong></p>
+            <p>일부 지역에서는 레이더 데이터가 제한될 수 있습니다.</p>
           </div>
+          <button 
+            @click="closeServiceNotice" 
+            class="notice-close"
+            title="안내 닫기"
+          >
+            ×
+          </button>
+        </div>
+        
+        <!-- 프레임 정보 -->
+        <div class="frame-info">
+          <span class="frame-counter">{{ currentFrameIndex + 1 }} / {{ totalFrames }}</span>
+          <span class="frame-time">{{ currentFrameTime }}</span>
         </div>
         
         <!-- 레이더 범례 -->
         <div class="radar-legend">
+          <div class="legend-title">강수 강도</div>
           <div 
-            v-for="(item, index) in layerInfo.legend" 
+            v-for="(item, index) in legendItems" 
             :key="index"
             class="legend-item"
           >
@@ -55,7 +96,8 @@
 </template>
 
 <script>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed, onUnmounted, nextTick } from 'vue'
+import L from 'leaflet'
 
 export default {
   name: 'WeatherRadar',
@@ -71,405 +113,345 @@ export default {
     cityName: {
       type: String,
       required: true
-    },
-    layerType: {
-      type: String,
-      default: 'clouds_new',
-      validator: (value) => ['clouds_new', 'precipitation_new', 'pressure_new', 'wind_new', 'temp_new'].includes(value)
     }
   },
   setup(props) {
     const radarContainer = ref(null)
-    const isLoading = ref(true)
-    const imageLoaded = ref(false)
+    const mapContainer = ref(null)
+    const isLoading = ref(false)
     const imageError = ref(false)
+    const radarData = ref(null)
+    const refreshInterval = ref(null)
+    const animationInterval = ref(null)
+    const showServiceNotice = ref(true)
+    
+    // Leaflet 지도 관련
+    let map = null
+    let radarLayer = null
+    
+    // 애니메이션 상태
+    const isAnimating = ref(false)
+    const currentFrameIndex = ref(0)
+    const animationSpeed = 1000 // 1초마다 프레임 변경
 
-    // 레이어 정보
-    const layerInfo = computed(() => {
-      const layers = {
-        clouds_new: {
-          title: '구름 레이더',
-          icon: '☁️',
-          legend: [
-            { color: 'light-clouds', text: '맑음' },
-            { color: 'moderate-clouds', text: '구름' },
-            { color: 'heavy-clouds', text: '흐림' }
-          ]
-        },
-        precipitation_new: {
-          title: '강수 레이더',
-          icon: '🌧️',
-          legend: [
-            { color: 'light-rain', text: '약한 비' },
-            { color: 'moderate-rain', text: '보통 비' },
-            { color: 'heavy-rain', text: '강한 비' }
-          ]
-        },
-        pressure_new: {
-          title: '기압 레이더',
-          icon: '🌪️',
-          legend: [
-            { color: 'low-pressure', text: '저기압' },
-            { color: 'normal-pressure', text: '보통' },
-            { color: 'high-pressure', text: '고기압' }
-          ]
-        },
-        wind_new: {
-          title: '풍속 레이더',
-          icon: '💨',
-          legend: [
-            { color: 'light-wind', text: '약한 바람' },
-            { color: 'moderate-wind', text: '보통 바람' },
-            { color: 'strong-wind', text: '강한 바람' }
-          ]
-        },
-        temp_new: {
-          title: '온도 레이더',
-          icon: '🌡️',
-          legend: [
-            { color: 'cold', text: '추움' },
-            { color: 'mild', text: '보통' },
-            { color: 'hot', text: '더움' }
-          ]
-        }
-      }
-      return layers[props.layerType] || layers.clouds_new
+    // RainViewer API 엔드포인트
+    const RAINVIEWER_API = 'https://api.rainviewer.com/public/weather-maps.json'
+    
+    // 범례 아이템
+    const legendItems = [
+      { color: 'light-rain', text: '약한 비' },
+      { color: 'moderate-rain', text: '보통 비' },
+      { color: 'heavy-rain', text: '강한 비' },
+      { color: 'very-heavy-rain', text: '매우 강한 비' }
+    ]
+
+    // 총 프레임 수 계산
+    const totalFrames = computed(() => {
+      if (!radarData.value?.radar?.past) return 0
+      return radarData.value.radar.past.length
     })
 
-    // 현재 시간 포맷팅
-    const lastUpdate = computed(() => {
-      const now = new Date()
-      return now.toLocaleTimeString('ko-KR', {
+    // 현재 프레임 시간 표시
+    const currentFrameTime = computed(() => {
+      if (!radarData.value?.radar?.past || currentFrameIndex.value >= totalFrames.value) {
+        return '데이터 없음'
+      }
+      
+      const frame = radarData.value.radar.past[currentFrameIndex.value]
+      const timestamp = frame.time * 1000
+      const date = new Date(timestamp)
+      return date.toLocaleTimeString('ko-KR', {
         hour: '2-digit',
         minute: '2-digit'
       })
     })
 
-    // OpenWeatherMap 레이더 URL 생성
-    const radarUrl = computed(() => {
-      const lat = Math.round(props.latitude * 100) / 100
-      const lon = Math.round(props.longitude * 100) / 100
-      const zoom = 10
+    // 현재 시간 포맷팅
+    const lastUpdate = computed(() => {
+      if (!radarData.value) return '업데이트 중...'
       
-      // 타일 좌표 계산
-      const n = Math.pow(2, zoom)
-      const xtile = Math.floor((lon + 180) / 360 * n)
-      const ytile = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n)
-      
-      // OpenWeatherMap 레이더 타일 URL
-      const baseUrl = `https://tile.openweathermap.org/map`
-      const apiKey = import.meta.env.VITE_WEATHER_API_KEY
-      
-      return `${baseUrl}/${props.layerType}/${zoom}/${xtile}/${ytile}.png?appid=${apiKey}`
+      const timestamp = radarData.value.generated * 1000
+      const date = new Date(timestamp)
+      return date.toLocaleTimeString('ko-KR', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
     })
 
-    const onImageLoad = () => {
-      imageLoaded.value = true
-      isLoading.value = false
-      imageError.value = false
-      console.log('레이더 이미지 로드 성공:', radarUrl.value)
+    // Leaflet 지도 초기화
+    const initMap = () => {
+      if (!mapContainer.value) return
+      
+      // 기존 지도 제거
+      if (map) {
+        map.remove()
+      }
+      
+      // 새 지도 생성
+      map = L.map(mapContainer.value, {
+        center: [props.latitude, props.longitude],
+        zoom: 8,
+        zoomControl: false, // 기본 줌 컨트롤 비활성화
+        attributionControl: false // 기본 attribution 비활성화
+      })
+      
+      // OpenStreetMap 기본 타일 레이어 추가
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(map)
+      
+      // 현재 위치 마커 추가
+      L.marker([props.latitude, props.longitude])
+        .addTo(map)
+        .bindPopup(`<b>${props.cityName}</b><br>현재 위치`)
+        .openPopup()
+      
+      console.log('Leaflet 지도 초기화 완료')
     }
 
-    const onImageError = () => {
-      imageError.value = true
-      isLoading.value = false
-      console.warn('레이더 이미지 로드 실패:', radarUrl.value)
+    // RainViewer 레이더 레이어 추가 (공식 예제 방식)
+    const addRadarLayer = () => {
+      if (!map || !radarData.value?.radar?.past) return
+      
+      // 기존 레이더 레이어 제거
+      if (radarLayer) {
+        map.removeLayer(radarLayer)
+      }
+      
+      try {
+        const frame = radarData.value.radar.past[currentFrameIndex.value]
+        const host = radarData.value.host
+        const color = 2 // 색상 스키마 (2 = 표준)
+        const options = '1_0' // smoothed, no snow
+        
+        // RainViewer 공식 타일 레이어 방식: {host}{path}/{z}/{x}/{y}/{color}/{options}.png
+        const tileUrl = `${host}${frame.path}/{z}/{x}/{y}/${color}/${options}.png`
+        
+        console.log('RainViewer 레이더 타일 URL 생성:', {
+          frameIndex: currentFrameIndex.value,
+          frameTime: new Date(frame.time * 1000).toLocaleTimeString(),
+          host,
+          path: frame.path,
+          color,
+          options,
+          tileUrl
+        })
+        
+        // RainViewer 타일 레이어 생성 (공식 방식)
+        radarLayer = L.tileLayer(tileUrl, {
+          opacity: 0.7,
+          attribution: '© RainViewer',
+          maxZoom: 18,
+          tileSize: 256,
+          errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' // 투명 이미지
+        }).addTo(map)
+        
+        // 타일 로딩 이벤트 처리
+        radarLayer.on('tileerror', (e) => {
+          console.warn('RainViewer 타일 로딩 실패:', e.tile.src)
+        })
+        
+        radarLayer.on('tileload', (e) => {
+          console.log('RainViewer 타일 로딩 성공')
+        })
+        
+        console.log('RainViewer 레이더 타일 레이어 추가 완료')
+        
+      } catch (error) {
+        console.error('레이더 레이어 추가 오류:', error)
+        imageError.value = true
+      }
     }
 
-    // 좌표 변경 시 레이더 업데이트
-    watch([() => props.latitude, () => props.longitude], () => {
-      if (props.latitude && props.longitude) {
+    // RainViewer API에서 레이더 데이터 가져오기
+    const fetchRadarData = async () => {
+      try {
         isLoading.value = true
-        imageLoaded.value = false
         imageError.value = false
+        
+        console.log('RainViewer API에서 레이더 데이터 가져오는 중...')
+        
+        const response = await fetch(RAINVIEWER_API)
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        
+        const data = await response.json()
+        radarData.value = data
+        
+        console.log('RainViewer 레이더 데이터 로드 성공:', data)
+        
+        // 가장 최근의 과거 레이더 데이터 사용
+        if (data.radar && data.radar.past && data.radar.past.length > 0) {
+          currentFrameIndex.value = data.radar.past.length - 1 // 가장 최근 프레임
+          addRadarLayer()
+        } else {
+          throw new Error('사용 가능한 레이더 데이터가 없습니다')
+        }
+        
+        // API 호출 성공 시 로딩 상태 해제
+        isLoading.value = false
+        
+      } catch (error) {
+        console.error('RainViewer API 오류:', error)
+        imageError.value = true
+        isLoading.value = false
+      }
+    }
+
+    // 이전 프레임
+    const previousFrame = () => {
+      if (currentFrameIndex.value > 0) {
+        currentFrameIndex.value--
+        addRadarLayer()
+      }
+    }
+
+    // 다음 프레임
+    const nextFrame = () => {
+      if (currentFrameIndex.value < totalFrames.value - 1) {
+        currentFrameIndex.value++
+        addRadarLayer()
+      }
+    }
+
+    // 애니메이션 토글
+    const toggleAnimation = () => {
+      if (isAnimating.value) {
+        stopAnimation()
+      } else {
+        startAnimation()
+      }
+    }
+
+    // 애니메이션 시작
+    const startAnimation = () => {
+      if (totalFrames.value <= 1) return
+      
+      isAnimating.value = true
+      animationInterval.value = setInterval(() => {
+        if (currentFrameIndex.value >= totalFrames.value - 1) {
+          currentFrameIndex.value = 0 // 처음으로 돌아가기
+        } else {
+          currentFrameIndex.value++
+        }
+        addRadarLayer()
+      }, animationSpeed)
+      
+      console.log('레이더 애니메이션 시작')
+    }
+
+    // 애니메이션 정지
+    const stopAnimation = () => {
+      isAnimating.value = false
+      if (animationInterval.value) {
+        clearInterval(animationInterval.value)
+        animationInterval.value = null
+      }
+      console.log('레이더 애니메이션 정지')
+    }
+
+    // 레이더 새로고침
+    const refreshRadar = () => {
+      console.log('레이더 새로고침 시작')
+      stopAnimation()
+      currentFrameIndex.value = 0
+      fetchRadarData()
+    }
+
+    // 서비스 안내 닫기
+    const closeServiceNotice = () => {
+      showServiceNotice.value = false
+      console.log('서비스 안내 닫힘')
+    }
+
+    // 자동 새로고침 설정 (10분마다)
+    const startAutoRefresh = () => {
+      refreshInterval.value = setInterval(() => {
+        console.log('자동 레이더 새로고침 실행')
+        refreshRadar()
+      }, 10 * 60 * 1000) // 10분
+    }
+
+    const stopAutoRefresh = () => {
+      if (refreshInterval.value) {
+        clearInterval(refreshInterval.value)
+        refreshInterval.value = null
+      }
+    }
+
+    // 좌표 변경 시 지도 및 레이더 업데이트
+    watch([() => props.latitude, () => props.longitude], () => {
+      console.log('레이더 좌표 변경 감지:', { 
+        lat: props.latitude, 
+        lon: props.longitude
+      })
+      
+      if (props.latitude && props.longitude) {
+        // 지도 중심 이동
+        if (map) {
+          map.setView([props.latitude, props.longitude], 8)
+        }
+        
+        // 레이더 데이터가 있으면 새 좌표로 업데이트
+        if (radarData.value) {
+          addRadarLayer()
+        } else {
+          fetchRadarData()
+        }
       }
     })
 
-    onMounted(() => {
-      // 초기 로딩 상태 설정
+    onMounted(async () => {
+      console.log('WeatherRadar 마운트됨:', {
+        latitude: props.latitude,
+        longitude: props.longitude,
+        cityName: props.cityName
+      })
+      
       if (props.latitude && props.longitude) {
-        isLoading.value = true
+        // DOM이 렌더링된 후 지도 초기화
+        await nextTick()
+        initMap()
+        fetchRadarData()
+        startAutoRefresh()
+      }
+    })
+
+    onUnmounted(() => {
+      stopAutoRefresh()
+      stopAnimation()
+      
+      // 지도 정리
+      if (map) {
+        map.remove()
+        map = null
       }
     })
 
     return {
       radarContainer,
+      mapContainer,
       isLoading,
-      imageLoaded,
       imageError,
       lastUpdate,
-      radarUrl,
-      onImageLoad,
-      onImageError
+      legendItems,
+      currentFrameIndex,
+      totalFrames,
+      currentFrameTime,
+      isAnimating,
+      showServiceNotice,
+      refreshRadar,
+      previousFrame,
+      nextFrame,
+      toggleAnimation,
+      closeServiceNotice
     }
   }
 }
 </script>
 
-<style scoped>
-.weather-radar-container {
-  background: var(--card-background);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: var(--shadow);
-  border: 1px solid var(--border-color);
-  height: fit-content;
-}
-
-.radar-header {
-  padding: 16px;
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
-  color: white;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.radar-title {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.radar-icon {
-  font-size: 1.2rem;
-}
-
-.radar-info {
-  font-size: 0.8rem;
-  opacity: 0.9;
-}
-
-.update-time {
-  font-weight: 500;
-}
-
-.radar-content {
-  position: relative;
-}
-
-.radar-map {
-  height: 250px;
-  position: relative;
-  background: linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%),
-              linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%);
-  background-size: 20px 20px;
-  background-position: 0 0, 10px 10px;
-  overflow: hidden;
-}
-
-.radar-loading {
-  background: linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%),
-              linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%);
-  background-size: 20px 20px;
-  background-position: 0 0, 10px 10px;
-  animation: loading 1.5s infinite;
-}
-
-@keyframes loading {
-  0% { background-position: 0 0, 10px 10px; }
-  100% { background-position: 20px 20px, 30px 30px; }
-}
-
-.radar-loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.9);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  
-  [data-theme="dark"] & {
-    background: rgba(30, 41, 59, 0.9);
-  }
-}
-
-.loading {
-  width: 40px;
-  height: 40px;
-  border: 3px solid var(--primary-color);
-  border-top: 3px solid transparent;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 12px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.loading-text {
-  font-size: 0.9rem;
-  color: var(--text-color);
-  font-weight: 500;
-}
-
-.radar-tiles {
-  width: 100%;
-  height: 100%;
-  position: relative;
-}
-
-.radar-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 0;
-}
-
-.radar-error {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  padding: 20px;
-  text-align: center;
-  
-  .error-icon {
-    font-size: 3rem;
-    margin-bottom: 16px;
-    opacity: 0.7;
-  }
-  
-  .error-text {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-color);
-    margin: 0 0 8px 0;
-  }
-  
-  .error-subtext {
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    margin: 0;
-  }
-}
-
-.radar-legend {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 8px 12px;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  backdrop-filter: blur(10px);
-  display: flex;
-  gap: 12px;
-  
-  [data-theme="dark"] & {
-    background: rgba(30, 41, 59, 0.95);
-  }
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.legend-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-  
-  /* 구름 레이어 */
-  &.light-clouds {
-    background: linear-gradient(45deg, #87CEEB, #B0E0E6);
-  }
-  
-  &.moderate-clouds {
-    background: linear-gradient(45deg, #B0E0E6, #D3D3D3);
-  }
-  
-  &.heavy-clouds {
-    background: linear-gradient(45deg, #D3D3D3, #A9A9A9);
-  }
-  
-  /* 강수 레이어 */
-  &.light-rain {
-    background: linear-gradient(45deg, #87CEEB, #4682B4);
-  }
-  
-  &.moderate-rain {
-    background: linear-gradient(45deg, #4682B4, #1E90FF);
-  }
-  
-  &.heavy-rain {
-    background: linear-gradient(45deg, #1E90FF, #000080);
-  }
-  
-  /* 기압 레이어 */
-  &.low-pressure {
-    background: linear-gradient(45deg, #FF6B6B, #FF8E8E);
-  }
-  
-  &.normal-pressure {
-    background: linear-gradient(45deg, #4ECDC4, #44A08D);
-  }
-  
-  &.high-pressure {
-    background: linear-gradient(45deg, #45B7D1, #96C93D);
-  }
-  
-  /* 풍속 레이어 */
-  &.light-wind {
-    background: linear-gradient(45deg, #E8F5E8, #C8E6C9);
-  }
-  
-  &.moderate-wind {
-    background: linear-gradient(45deg, #FFF9C4, #FFF59D);
-  }
-  
-  &.strong-wind {
-    background: linear-gradient(45deg, #FFCC02, #FF9800);
-  }
-  
-  /* 온도 레이어 */
-  &.cold {
-    background: linear-gradient(45deg, #E3F2FD, #BBDEFB);
-  }
-  
-  &.mild {
-    background: linear-gradient(45deg, #F3E5F5, #E1BEE7);
-  }
-  
-  &.hot {
-    background: linear-gradient(45deg, #FFEBEE, #FFCDD2);
-  }
-}
-
-.legend-text {
-  font-size: 0.7rem;
-  color: var(--text-color);
-  font-weight: 500;
-}
-
-/* 모바일 반응형 */
-@media (max-width: 768px) {
-  .radar-map {
-    height: 200px;
-  }
-  
-  .radar-legend {
-    bottom: 8px;
-    right: 8px;
-    padding: 6px 10px;
-    gap: 8px;
-  }
-  
-  .legend-text {
-    font-size: 0.65rem;
-  }
-}
+<style lang="scss" scoped>
+  @use '../styles/components/weatherRadar.module.scss' as weatherRadar;
 </style>

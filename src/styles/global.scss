@@ -15,6 +15,10 @@
   --primary-color: #{vars.$primary};
   --secondary-color: #{vars.$secondary};
   --accent-color: #{vars.$accent};
+  --error-color: #{vars.$error};
+  --success-color: #{vars.$success};
+  --warning-color: #{vars.$warning};
+  --info-color: #{vars.$info};
   --page-background: #{vars.$gray-50};
   --body-background: #{vars.$white};
   --text-color: #{vars.$gray-800};

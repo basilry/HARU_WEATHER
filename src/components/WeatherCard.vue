@@ -15,7 +15,7 @@
       </button>
     </div>
 
-    <div class="weather-main">
+    <div class="weather-content">
       <div class="temperature-section">
         <div class="current-temp">{{ Math.round(weather.main.temp) }}°C</div>
         <div class="weather-icon">
@@ -33,15 +33,7 @@
       </div>
     </div>
 
-    <!-- 지도 섹션 - 전체 너비 사용 -->
-    <div class="map-section-full">
-      <WeatherMap
-        :latitude="weather.coord.lat"
-        :longitude="weather.coord.lon"
-        :city-name="weather.name"
-        :weather="weather"
-      />
-    </div>
+
 
     <div class="weather-details">
       <div class="detail-grid">
@@ -153,12 +145,10 @@
 
 <script>
 import { computed } from 'vue'
-import WeatherMap from '@components/WeatherMap.vue'
 
 export default {
   name: 'WeatherCard',
   components: {
-    WeatherMap
   },
   props: {
     weather: {
@@ -232,203 +222,6 @@ export default {
 }
 </script>
 
-<style scoped>
-.weather-card {
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.weather-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 24px;
-}
-
-.location-info {
-  flex: 1;
-}
-
-.city-name {
-  font-size: 2rem;
-  font-weight: 700;
-  margin: 0 0 4px 0;
-  color: var(--text-color);
-}
-
-.country {
-  font-size: 1rem;
-  color: var(--text-secondary);
-  margin: 0 0 8px 0;
-}
-
-.date-time {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.favorite-btn {
-  font-size: 1.2rem;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.weather-main {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 32px;
-}
-
-.temperature-section {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.current-temp {
-  font-size: 4rem;
-  font-weight: 300;
-  color: var(--primary-color);
-  line-height: 1;
-}
-
-.weather-icon-img {
-  width: 80px;
-  height: 80px;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
-}
-
-.weather-description {
-  text-align: right;
-}
-
-.description {
-  font-size: 1.5rem;
-  font-weight: 500;
-  margin: 0 0 8px 0;
-  color: var(--text-color);
-}
-
-.feels-like {
-  font-size: 1rem;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.weather-details {
-  margin-bottom: 24px;
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 16px;
-}
-
-.detail-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: var(--background-color);
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-}
-
-.detail-icon {
-  font-size: 1.5rem;
-  width: 32px;
-  text-align: center;
-}
-
-.detail-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.detail-label {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.detail-value {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-color);
-}
-
-.temp-range {
-  margin-top: 24px;
-}
-
-.temp-bar {
-  position: relative;
-  height: 8px;
-  background: linear-gradient(to right, #3b82f6, #ef4444);
-  border-radius: 4px;
-  margin-bottom: 8px;
-}
-
-.temp-indicator {
-  position: absolute;
-  top: -4px;
-  width: 16px;
-  height: 16px;
-  background: white;
-  border: 3px solid var(--primary-color);
-  border-radius: 50%;
-  transform: translateX(-50%);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.temp-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-@media (max-width: 768px) {
-  .city-name {
-    font-size: 1.5rem;
-  }
-  
-  .current-temp {
-    font-size: 3rem;
-  }
-  
-  .weather-icon-img {
-    width: 60px;
-    height: 60px;
-  }
-  
-  .weather-main {
-    flex-direction: column;
-    text-align: center;
-    gap: 16px;
-  }
-  
-  .weather-description {
-    text-align: center;
-  }
-  
-  .detail-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-  }
-  
-  .detail-item {
-    padding: 8px;
-  }
-}
+<style lang="scss" scoped>
+  @use '../styles/components/weatherCard.module.scss' as weatherCard;
 </style>

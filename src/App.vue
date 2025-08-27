@@ -58,6 +58,31 @@
         </div>
       </section>
 
+      <!-- 즐겨찾기 섹션 (작은 사이즈) -->
+      <section v-if="favorites.length > 0" class="favorites-section-compact">
+        <div class="favorites-compact-grid">
+          <div
+            v-for="favorite in favorites"
+            :key="favorite.id"
+            @click="loadFavoriteWeather(favorite)"
+            class="favorite-compact-item"
+            :title="`${favorite.name}, ${favorite.country}`"
+          >
+            <div class="favorite-compact-info">
+              <span class="favorite-compact-name">{{ favorite.name }}</span>
+              <span class="favorite-compact-temp">{{ favorite.temp }}°</span>
+            </div>
+            <button 
+              @click.stop="removeFromFavorites(favorite.id)"
+              class="favorite-compact-remove"
+              title="즐겨찾기 제거"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      </section>
+
       <!-- 에러 메시지 -->
       <transition name="fade">
         <div v-if="error" class="error-message">
@@ -66,38 +91,20 @@
         </div>
       </transition>
 
-      <!-- 레이어 선택기 -->
-      <div v-if="currentWeather && !isLoading" class="layer-selector">
-        <h3 class="layer-title">날씨 레이어 선택</h3>
-        <div class="layer-options">
-          <button
-            v-for="layer in availableLayers"
-            :key="layer.value"
-            @click="selectedLayer = layer.value"
-            class="layer-btn"
-            :class="{ active: selectedLayer === layer.value }"
-          >
-            <span class="layer-icon">{{ layer.icon }}</span>
-            <span class="layer-name">{{ layer.name }}</span>
-          </button>
-        </div>
-      </div>
-
       <!-- 메인 날씨 카드와 레이더 -->
       <transition name="slide-up">
-        <div v-if="currentWeather" class="main-weather-section">
-          <div class="weather-main">
+        <div v-if="currentWeather" class="weather-layout">
+          <div class="weather-card-container">
             <WeatherCard 
               :weather="currentWeather"
               @add-to-favorites="addToFavorites"
             />
           </div>
-          <div class="weather-sidebar">
+          <div class="weather-radar-container">
             <WeatherRadar
               :latitude="currentWeather.coord.lat"
               :longitude="currentWeather.coord.lon"
               :cityName="currentWeather.name"
-              :layerType="selectedLayer"
             />
           </div>
         </div>
@@ -109,20 +116,6 @@
         <p>날씨 정보를 불러오는 중...</p>
         <p class="loading-debug">현재 상태: isLoading={{ isLoading }}, currentWeather={{ currentWeather ? '있음' : '없음' }}</p>
       </div>
-
-      <!-- 즐겨찾기 섹션 -->
-      <section v-if="favorites.length > 0" class="favorites-section">
-        <h2 class="section-title">⭐ 즐겨찾기</h2>
-        <div class="favorites-grid">
-          <FavoriteCard
-            v-for="favorite in favorites"
-            :key="favorite.id"
-            :favorite="favorite"
-            @click="loadFavoriteWeather(favorite)"
-            @remove="removeFromFavorites(favorite.id)"
-          />
-        </div>
-      </section>
 
       <!-- 5일 예보 -->
       <transition name="slide-up">
@@ -167,16 +160,6 @@ export default {
     const error = ref('')
     const isDarkMode = ref(false)
     const favorites = ref([])
-    const selectedLayer = ref('clouds_new')
-    
-    // 사용 가능한 레이어 목록
-    const availableLayers = [
-      { value: 'clouds_new', name: '구름', icon: '☁️' },
-      { value: 'precipitation_new', name: '강수', icon: '🌧️' },
-      { value: 'pressure_new', name: '기압', icon: '🌪️' },
-      { value: 'wind_new', name: '풍속', icon: '💨' },
-      { value: 'temp_new', name: '온도', icon: '🌡️' }
-    ]
     
     // 로딩 상태
     const isLoading = ref(false)
@@ -202,7 +185,13 @@ export default {
       })
       
       // 자동으로 현재 위치 날씨 가져오기
+      console.log('현재 위치 날씨 가져오기 시작...')
       await getCurrentLocation()
+      console.log('현재 위치 날씨 가져오기 완료:', {
+        currentWeather: currentWeather.value,
+        isLoading: isLoading.value,
+        error: error.value
+      })
     })
 
     // 현재 위치 가져오기
@@ -215,7 +204,9 @@ export default {
         const position = await locationService.getCurrentPosition()
         console.log('위치 정보 성공:', position.coords)
         
+        console.log('날씨 정보 로드 시작...')
         await loadWeatherByCoords(position.coords.latitude, position.coords.longitude)
+        console.log('날씨 정보 로드 완료')
       } catch (err) {
         error.value = err.message
         console.error('위치 정보 가져오기 실패:', err)
@@ -244,13 +235,19 @@ export default {
         
         console.log('상태 업데이트 후:', {
           currentWeather: currentWeather.value,
-          isLoading: isLoading.value
+          isLoading: isLoading.value,
+          currentWeatherName: currentWeather.value?.name,
+          currentWeatherCoord: currentWeather.value?.coord
         })
       } catch (err) {
         error.value = err.message
         console.error('날씨 정보 로드 실패:', err)
       } finally {
         isLoading.value = false
+        console.log('로딩 완료, 최종 상태:', {
+          currentWeather: currentWeather.value,
+          isLoading: isLoading.value
+        })
       }
     }
 
@@ -337,6 +334,8 @@ export default {
       loadWeatherByCoords(favorite.lat, favorite.lon)
     }
 
+
+
     return {
       // 상태
       currentWeather,
@@ -365,151 +364,5 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-@use 'sass:color';
-
-.header {
-  @include mix.flex-between;
-  margin-bottom: vars.$spacing-8;
-  padding-bottom: vars.$spacing-4;
-  border-bottom: 2px solid var(--border-color);
-}
-
-.app-title {
-  font-size: vars.$font-size-4xl;
-  font-weight: vars.$font-weight-bold;
-  color: var(--title-color);
-  margin: 0;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  @include mix.gradient-text(linear-gradient(135deg, var(--primary-color), var(--accent-color)));
-}
-
-.header-controls {
-  display: flex;
-  gap: vars.$spacing-3;
-}
-
-.theme-toggle {
-  width: 48px;
-  height: 48px;
-  border-radius: vars.$radius-full;
-  font-size: vars.$font-size-xl;
-  @include mix.flex-center;
-  padding: 0;
-}
-
-.search-section {
-  position: relative;
-  margin-bottom: vars.$spacing-8;
-}
-
-.search-container {
-  display: flex;
-  gap: vars.$spacing-3;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.search-input {
-  flex: 1;
-}
-
-.search-btn, .location-btn {
-  width: 48px;
-  height: 48px;
-  @include mix.flex-center;
-  font-size: vars.$font-size-lg;
-  padding: 0;
-}
-
-.suggestions {
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 600px;
-  background: var(--card-background);
-  border: 1px solid var(--border-color);
-  border-radius: vars.$radius-md;
-  box-shadow: var(--shadow);
-  z-index: vars.$z-index-dropdown;
-  margin-top: vars.$spacing-1;
-}
-
-.suggestion-item {
-  padding: vars.$spacing-3 vars.$spacing-4;
-  cursor: pointer;
-  transition: var(--transition);
-  border-bottom: 1px solid var(--border-color);
-}
-
-.suggestion-item:last-child {
-  border-bottom: none;
-}
-
-.suggestion-item:hover {
-  background: var(--border-color);
-}
-
-.error-message {
-  background: rgba(vars.$error, 0.1);
-  color: vars.$error;
-  padding: vars.$spacing-4;
-  border-radius: vars.$radius-md;
-  margin-bottom: vars.$spacing-6;
-  text-align: center;
-  border: 1px solid rgba(vars.$error, 0.2);
-}
-
-[data-theme="dark"] .error-message {
-  background: rgba(vars.$error, 0.2);
-  color: color.adjust(vars.$error, $lightness: 20%);
-  border-color: rgba(vars.$error, 0.3);
-}
-
-.loading-container {
-  text-align: center;
-  padding: vars.$spacing-12 vars.$spacing-6;
-}
-
-.loading-large {
-  @include mix.loading-spinner(48px, 4px);
-  margin: 0 auto vars.$spacing-4;
-}
-
-.favorites-section {
-  margin-top: vars.$spacing-12;
-}
-
-.section-title {
-  font-size: vars.$font-size-2xl;
-  font-weight: vars.$font-weight-semibold;
-  margin-bottom: vars.$spacing-6;
-  color: var(--text-color);
-}
-
-.favorites-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: vars.$spacing-4;
-}
-
-@include mix.mobile {
-  .app-title {
-    font-size: vars.$font-size-3xl;
-  }
-  
-  .search-container {
-    flex-direction: column;
-  }
-  
-  .search-btn, .location-btn {
-    width: 100%;
-    height: 48px;
-  }
-  
-  .favorites-grid {
-    grid-template-columns: 1fr;
-  }
-}
+  @use './styles/components/app.module.scss' as app;
 </style>
