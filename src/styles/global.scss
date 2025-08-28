@@ -82,12 +82,7 @@ body[data-theme="dark"] {
 
 #app {
   min-height: 100vh;
-  padding: vars.$spacing-5;
   position: relative;
-  
-  @include mix.mobile {
-    padding: vars.$spacing-3;
-  }
 }
 
 .container {

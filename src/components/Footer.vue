@@ -66,10 +66,10 @@
         <div class="footer-section additional-info">
           <h4 class="section-title">정보</h4>
           <div class="info-links">
-            <a href="#" class="info-link">프로젝트 소개</a>
-            <a href="#" class="info-link">API 문서</a>
-            <a href="#" class="info-link">사용법</a>
-            <a href="#" class="info-link">피드백</a>
+            <router-link to="/about" class="info-link">프로젝트 소개</router-link>
+            <router-link to="/api-docs" class="info-link">API 문서</router-link>
+            <router-link to="/usage" class="info-link">사용법</router-link>
+            <router-link to="/feedback" class="info-link">피드백</router-link>
           </div>
         </div>
       </div>

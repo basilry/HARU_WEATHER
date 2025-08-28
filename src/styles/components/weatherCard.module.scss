@@ -1,10 +1,6 @@
 @use '../variables' as vars;
 @use '../mixins' as mix;
 
-.weather-card {
-  max-width: 600px;
-}
-
 .weather-header {
   display: flex;
   justify-content: space-between;
